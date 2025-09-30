@@ -1,0 +1,340 @@
+"""
+Sistema de Gestão da Clínica Vida+
+Descrição: Sistema completo de cadastro e gestão de pacientes com
+           validações, estatísticas e interface interativa.
+"""
+
+import re
+from typing import List, Dict, Optional
+from datetime import datetime
+
+
+class SistemaClinica:
+    """Classe principal para gerenciamento da Clínica Vida+"""
+    
+    def __init__(self):
+        """Inicializa o sistema com lista vazia de pacientes"""
+        self.pacientes: List[Dict[str, any]] = []
+        self.proximo_id = 1
+    
+    def validar_nome(self, nome: str) -> bool:
+        """
+        Valida se o nome não está vazio e contém apenas letras e espaços
+        
+        Args:
+            nome: Nome do paciente a ser validado
+            
+        Returns:
+            bool: True se válido, False caso contrário
+        """
+        if not nome or not nome.strip():
+            return False
+        # Permite letras, espaços e acentos
+        return bool(re.match(r'^[a-zA-ZÀ-ÿ\s]+$', nome))
+    
+    def validar_idade(self, idade: str) -> tuple[bool, int]:
+        """
+        Valida se a idade é um número positivo entre 0 e 150
+        
+        Args:
+            idade: Idade em string a ser validada
+            
+        Returns:
+            tuple: (válido: bool, idade_int: int)
+        """
+        try:
+            idade_int = int(idade)
+            if 0 <= idade_int <= 150:
+                return True, idade_int
+            return False, 0
+        except ValueError:
+            return False, 0
+    
+    def validar_telefone(self, telefone: str) -> tuple[bool, str]:
+        """
+        Valida e formata telefone brasileiro
+        Aceita formatos: (11) 99999-9999, 11999999999, etc.
+        
+        Args:
+            telefone: Telefone a ser validado
+            
+        Returns:
+            tuple: (válido: bool, telefone_formatado: str)
+        """
+        # Remove caracteres não numéricos
+        numeros = re.sub(r'\D', '', telefone)
+        
+        # Verifica se tem 10 ou 11 dígitos
+        if len(numeros) == 10:
+            # Formato: (XX) XXXX-XXXX
+            formatado = f"({numeros[:2]}) {numeros[2:6]}-{numeros[6:]}"
+            return True, formatado
+        elif len(numeros) == 11:
+            # Formato: (XX) XXXXX-XXXX
+            formatado = f"({numeros[:2]}) {numeros[2:7]}-{numeros[7:]}"
+            return True, formatado
+        
+        return False, ""
+    
+    def cadastrar_paciente(self) -> bool:
+        """
+        Cadastra um novo paciente no sistema com validações
+        
+        Returns:
+            bool: True se cadastrado com sucesso, False caso contrário
+        """
+        print("\n=== CADASTRO DE PACIENTE ===")
+        
+        # Validação do nome
+        while True:
+            nome = input("Nome do paciente: ").strip().title()
+            if self.validar_nome(nome):
+                break
+            print("❌ Nome inválido! Use apenas letras e espaços.")
+        
+        # Validação da idade
+        while True:
+            idade_str = input("Idade: ")
+            valido, idade = self.validar_idade(idade_str)
+            if valido:
+                break
+            print("❌ Idade inválida! Digite um número entre 0 e 150.")
+        
+        # Validação do telefone
+        while True:
+            telefone = input("Telefone (com DDD): ")
+            valido, telefone_formatado = self.validar_telefone(telefone)
+            if valido:
+                break
+            print("❌ Telefone inválido! Use o formato (XX) XXXXX-XXXX")
+        
+        # Criar registro do paciente
+        paciente = {
+            'id': self.proximo_id,
+            'nome': nome,
+            'idade': idade,
+            'telefone': telefone_formatado,
+            'data_cadastro': datetime.now().strftime("%d/%m/%Y %H:%M")
+        }
+        
+        self.pacientes.append(paciente)
+        self.proximo_id += 1
+        
+        print(f"\n✅ Paciente '{nome}' cadastrado com sucesso!")
+        print(f"   ID: {paciente['id']} | Cadastro: {paciente['data_cadastro']}")
+        return True
+    
+    def calcular_estatisticas(self) -> Dict[str, any]:
+        """
+        Calcula estatísticas dos pacientes cadastrados
+        
+        Returns:
+            dict: Dicionário com as estatísticas calculadas
+        """
+        if not self.pacientes:
+            return {
+                'total': 0,
+                'idade_media': 0,
+                'mais_novo': None,
+                'mais_velho': None
+            }
+        
+        total = len(self.pacientes)
+        idades = [p['idade'] for p in self.pacientes]
+        idade_media = sum(idades) / total
+        
+        # Encontrar paciente mais novo e mais velho
+        mais_novo = min(self.pacientes, key=lambda p: p['idade'])
+        mais_velho = max(self.pacientes, key=lambda p: p['idade'])
+        
+        return {
+            'total': total,
+            'idade_media': round(idade_media, 2),
+            'mais_novo': mais_novo,
+            'mais_velho': mais_velho
+        }
+    
+    def exibir_estatisticas(self):
+        """Exibe as estatísticas de forma formatada"""
+        stats = self.calcular_estatisticas()
+        
+        print("\n" + "="*50)
+        print("📊 ESTATÍSTICAS DA CLÍNICA VIDA+")
+        print("="*50)
+        
+        if stats['total'] == 0:
+            print("⚠️  Nenhum paciente cadastrado ainda.")
+            return
+        
+        print(f"📋 Total de pacientes: {stats['total']}")
+        print(f"📈 Idade média: {stats['idade_media']:.1f} anos")
+        print(f"👶 Paciente mais novo: {stats['mais_novo']['nome']} ({stats['mais_novo']['idade']} anos)")
+        print(f"👴 Paciente mais velho: {stats['mais_velho']['nome']} ({stats['mais_velho']['idade']} anos)")
+        print("="*50)
+    
+    def buscar_paciente(self, nome_busca: str) -> List[Dict]:
+        """
+        Busca pacientes pelo nome (busca parcial, case-insensitive)
+        
+        Args:
+            nome_busca: Nome ou parte do nome a buscar
+            
+        Returns:
+            list: Lista de pacientes encontrados
+        """
+        nome_busca = nome_busca.lower().strip()
+        encontrados = []
+        
+        for paciente in self.pacientes:
+            if nome_busca in paciente['nome'].lower():
+                encontrados.append(paciente)
+        
+        return encontrados
+    
+    def buscar_paciente_interativo(self):
+        """Interface interativa para busca de pacientes"""
+        print("\n=== BUSCAR PACIENTE ===")
+        nome_busca = input("Digite o nome (ou parte dele): ").strip()
+        
+        if not nome_busca:
+            print("❌ Digite algo para buscar!")
+            return
+        
+        encontrados = self.buscar_paciente(nome_busca)
+        
+        if not encontrados:
+            print(f"❌ Nenhum paciente encontrado com '{nome_busca}'")
+        else:
+            print(f"\n✅ {len(encontrados)} paciente(s) encontrado(s):")
+            print("-" * 50)
+            for paciente in encontrados:
+                self.exibir_paciente(paciente)
+    
+    def exibir_paciente(self, paciente: Dict):
+        """
+        Exibe informações de um paciente formatadas
+        
+        Args:
+            paciente: Dicionário com dados do paciente
+        """
+        print(f"📌 ID: {paciente['id']}")
+        print(f"   Nome: {paciente['nome']}")
+        print(f"   Idade: {paciente['idade']} anos")
+        print(f"   Telefone: {paciente['telefone']}")
+        print(f"   Cadastrado em: {paciente['data_cadastro']}")
+        print("-" * 50)
+    
+    def listar_pacientes(self):
+        """Lista todos os pacientes cadastrados de forma organizada"""
+        print("\n" + "="*60)
+        print("📋 LISTA DE PACIENTES - CLÍNICA VIDA+")
+        print("="*60)
+        
+        if not self.pacientes:
+            print("⚠️  Nenhum paciente cadastrado ainda.")
+            return
+        
+        # Ordenar por nome
+        pacientes_ordenados = sorted(self.pacientes, key=lambda p: p['nome'])
+        
+        for i, paciente in enumerate(pacientes_ordenados, 1):
+            print(f"\n{i}. {paciente['nome']}")
+            print(f"   📍 ID: {paciente['id']} | Idade: {paciente['idade']} anos")
+            print(f"   📞 {paciente['telefone']}")
+            print(f"   📅 Cadastro: {paciente['data_cadastro']}")
+        
+        print("\n" + "="*60)
+        print(f"Total: {len(self.pacientes)} paciente(s)")
+    
+    def carregar_dados_exemplo(self):
+        """Carrega dados de exemplo para testes"""
+        exemplos = [
+            {'nome': 'João Silva', 'idade': 45, 'telefone': '(11) 99999-9999'},
+            {'nome': 'Maria Santos', 'idade': 32, 'telefone': '(21) 98888-8888'},
+            {'nome': 'Pedro Oliveira', 'idade': 67, 'telefone': '(11) 97777-7777'},
+            {'nome': 'Ana Costa', 'idade': 28, 'telefone': '(31) 96666-6666'},
+            {'nome': 'Carlos Souza', 'idade': 55, 'telefone': '(41) 95555-5555'}
+        ]
+        
+        for exemplo in exemplos:
+            paciente = {
+                'id': self.proximo_id,
+                'nome': exemplo['nome'],
+                'idade': exemplo['idade'],
+                'telefone': exemplo['telefone'],
+                'data_cadastro': datetime.now().strftime("%d/%m/%Y %H:%M")
+            }
+            self.pacientes.append(paciente)
+            self.proximo_id += 1
+        
+        print("✅ 5 pacientes de exemplo foram carregados!")
+
+
+def exibir_menu():
+    """Exibe o menu principal do sistema"""
+    print("\n" + "="*40)
+    print("🏥 SISTEMA CLÍNICA VIDA+ 🏥")
+    print("="*40)
+    print("1. 📝 Cadastrar paciente")
+    print("2. 📊 Ver estatísticas")
+    print("3. 🔍 Buscar paciente")
+    print("4. 📋 Listar todos os pacientes")
+    print("5. 🎲 Carregar dados de exemplo")
+    print("6. ❌ Sair")
+    print("="*40)
+
+
+def main():
+    """Função principal do sistema"""
+    sistema = SistemaClinica()
+    
+    print("\n" + "🏥"*20)
+    print("\n    BEM-VINDO AO SISTEMA DA CLÍNICA VIDA+")
+    print("\n" + "🏥"*20)
+    
+    while True:
+        try:
+            exibir_menu()
+            opcao = input("\n👉 Escolha uma opção: ").strip()
+            
+            if opcao == '1':
+                sistema.cadastrar_paciente()
+            
+            elif opcao == '2':
+                sistema.exibir_estatisticas()
+            
+            elif opcao == '3':
+                sistema.buscar_paciente_interativo()
+            
+            elif opcao == '4':
+                sistema.listar_pacientes()
+            
+            elif opcao == '5':
+                if not sistema.pacientes:
+                    sistema.carregar_dados_exemplo()
+                else:
+                    print("⚠️  Já existem pacientes cadastrados!")
+            
+            elif opcao == '6':
+                print("\n👋 Obrigado por usar o Sistema Clínica Vida+!")
+                print("   Até logo! 🏥")
+                break
+            
+            else:
+                print("❌ Opção inválida! Digite um número de 1 a 6.")
+            
+            # Pausa para leitura
+            if opcao in ['1', '2', '3', '4', '5']:
+                input("\n📌 Pressione ENTER para continuar...")
+                
+        except KeyboardInterrupt:
+            print("\n\n⚠️  Operação cancelada pelo usuário.")
+            print("👋 Encerrando o sistema...")
+            break
+        except Exception as e:
+            print(f"\n❌ Erro inesperado: {e}")
+            print("Por favor, tente novamente.")
+
+
+if __name__ == "__main__":
+    main()
